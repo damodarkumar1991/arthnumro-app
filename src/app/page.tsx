@@ -12,11 +12,16 @@ export default function Home() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) router.push('/chat')
     })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) router.push('/onboarding')
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -25,9 +30,15 @@ export default function Home() {
     setError('')
     try {
       if (tab === 'signup') {
-        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name } } })
+        const { data, error } = await supabase.auth.signUp({
+          email, password,
+          options: {
+            data: { name },
+            emailRedirectTo: `${window.location.origin}/onboarding`
+          }
+        })
         if (error) throw error
-        if (data.user) router.push('/onboarding')
+        setConfirmed(true)
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
@@ -225,33 +236,55 @@ export default function Home() {
               <button className={`auth-tab${tab === 'signin' ? ' active' : ''}`} onClick={() => { setTab('signin'); setError('') }}>Sign In</button>
             </div>
 
-            {tab === 'signup' && (
-              <div style={{ background:'rgba(201,168,76,.06)', border:'1px solid rgba(201,168,76,.15)', padding:'14px 16px', fontSize:'.82rem', color:'#8B8470', marginBottom:'24px', lineHeight:1.6 }}>
-                🎁 &nbsp;<strong style={{ color:'#C9A84C' }}>5 free questions</strong> — no credit card required. Start exploring your chart right now.
+            {confirmed ? (
+              /* ── CONFIRMATION SCREEN ── */
+              <div style={{ textAlign:'center', padding:'32px 0' }}>
+                <div style={{ fontSize:'3rem', marginBottom:'20px' }}>✉️</div>
+                <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.8rem', fontWeight:300, marginBottom:'12px' }}>
+                  Check your <em style={{ fontStyle:'italic', color:'#C9A84C' }}>inbox</em>
+                </h3>
+                <p style={{ fontSize:'.88rem', color:'#8B8470', lineHeight:1.85, marginBottom:'20px' }}>
+                  We sent a confirmation link to<br />
+                  <strong style={{ color:'#EDE8DC' }}>{email}</strong>
+                </p>
+                <p style={{ fontSize:'.82rem', color:'#8B8470', lineHeight:1.7, marginBottom:'28px' }}>
+                  Click the link in the email to activate your account and start your reading. Check your spam folder if you don't see it.
+                </p>
+                <button onClick={() => { setConfirmed(false); setTab('signin') }} style={{ background:'transparent', border:'1px solid rgba(201,168,76,.3)', color:'#C9A84C', fontFamily:"'Outfit',sans-serif", fontSize:'.75rem', letterSpacing:'.1em', textTransform:'uppercase', padding:'10px 24px', cursor:'pointer' }}>
+                  Already confirmed? Sign In
+                </button>
               </div>
+            ) : (
+              <>
+                {tab === 'signup' && (
+                  <div style={{ background:'rgba(201,168,76,.06)', border:'1px solid rgba(201,168,76,.15)', padding:'14px 16px', fontSize:'.82rem', color:'#8B8470', marginBottom:'24px', lineHeight:1.6 }}>
+                    🎁 &nbsp;<strong style={{ color:'#C9A84C' }}>5 free questions</strong> — no credit card required. Start exploring your chart right now.
+                  </div>
+                )}
+
+                {error && <div className="error-box" style={{ marginBottom:'20px' }}>{error}</div>}
+
+                <form onSubmit={handleAuth} style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
+                  {tab === 'signup' && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                      <label style={{ fontSize:'.68rem', letterSpacing:'.12em', textTransform:'uppercase', color:'#8B8470' }}>Your Name</label>
+                      <input className="an-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Priya Sharma" required />
+                    </div>
+                  )}
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    <label style={{ fontSize:'.68rem', letterSpacing:'.12em', textTransform:'uppercase', color:'#8B8470' }}>Email Address</label>
+                    <input className="an-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" required />
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    <label style={{ fontSize:'.68rem', letterSpacing:'.12em', textTransform:'uppercase', color:'#8B8470' }}>Password</label>
+                    <input className="an-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 6 characters" minLength={6} required />
+                  </div>
+                  <button type="submit" className="gold-btn" disabled={loading} style={{ marginTop:'8px', width:'100%', textAlign:'center' }}>
+                    {loading ? 'Please wait...' : tab === 'signup' ? 'Begin My Journey ✦' : 'Sign In ✦'}
+                  </button>
+                </form>
+              </>
             )}
-
-            {error && <div className="error-box" style={{ marginBottom:'20px' }}>{error}</div>}
-
-            <form onSubmit={handleAuth} style={{ display:'flex', flexDirection:'column', gap:'18px' }}>
-              {tab === 'signup' && (
-                <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                  <label style={{ fontSize:'.68rem', letterSpacing:'.12em', textTransform:'uppercase', color:'#8B8470' }}>Your Name</label>
-                  <input className="an-input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Priya Sharma" required />
-                </div>
-              )}
-              <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                <label style={{ fontSize:'.68rem', letterSpacing:'.12em', textTransform:'uppercase', color:'#8B8470' }}>Email Address</label>
-                <input className="an-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@email.com" required />
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
-                <label style={{ fontSize:'.68rem', letterSpacing:'.12em', textTransform:'uppercase', color:'#8B8470' }}>Password</label>
-                <input className="an-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 6 characters" minLength={6} required />
-              </div>
-              <button type="submit" className="gold-btn" disabled={loading} style={{ marginTop:'8px', width:'100%', textAlign:'center' }}>
-                {loading ? 'Please wait...' : tab === 'signup' ? 'Begin My Journey ✦' : 'Sign In ✦'}
-              </button>
-            </form>
           </div>
         </div>
 
